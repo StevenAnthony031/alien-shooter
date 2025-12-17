@@ -91,7 +91,7 @@ while True:
             if event.type == enemies_timer:
                 enemies.add(Enemies(random.choice(['Bat', 'Bat' ,'fly-eye', 'fly-eye', 'fly-eye'])))
             if event.type == platform_timer:
-                platform.add(Platform(random.randint(825, 850), random.randint(150, 350)))
+                platform.add(Platform(random.randint(825, 900), random.randint(180, 380)))
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_k or event.key == pygame.K_SPACE:
                     current_time = time.time()

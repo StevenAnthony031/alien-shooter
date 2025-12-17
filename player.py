@@ -12,7 +12,7 @@ class Player(pygame.sprite.Sprite):
         # player movement
         self.direction = pygame.math.Vector2(0, 0)
         self.gravity = 0.5
-        self.jump_height = -17.5
+        self.jump_height = -15.5
         self.current_x = 0
         self.jump_sound = pygame.mixer.Sound('data/Sound/SFX_Jump_02.wav')
         
