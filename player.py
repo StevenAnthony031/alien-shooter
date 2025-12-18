@@ -9,14 +9,15 @@ class Player(pygame.sprite.Sprite):
         self.frame_index = 0
         self.animation_speed = 0.2
         
-        # player movement
+        # Player movement
         self.direction = pygame.math.Vector2(0, 0)
         self.gravity = 0.5
         self.jump_height = -15.5
         self.current_x = 0
         self.jump_sound = pygame.mixer.Sound('data/Sound/SFX_Jump_02.wav')
-        
-        # player status
+        self.can_jump = True
+
+        # Player status
         self.status = 'idle'
         self.facing_right = True
         self.on_platform = False
@@ -24,10 +25,11 @@ class Player(pygame.sprite.Sprite):
         self.on_left = False
         self.on_right = False
         self.platform = platform
+        self.was_on_platform = False
 
-        # player first position
+        # Player first position
         self.image = self.animations['idle'][self.frame_index]
-        self.rect = self.image.get_rect(midbottom = (700, 400))
+        self.rect = self.image.get_rect(midbottom = (700, 500))
         
     def import_player_assets(self):
         player_path = 'data/Player/'
@@ -59,7 +61,7 @@ class Player(pygame.sprite.Sprite):
             if self.frame_index >= len(animation):
                 self.frame_index = 0
         
-        # change the player direction
+        # Change the player direction
         image = self.image = animation[int(self.frame_index)]
         if self.facing_right:
             self.image = image
@@ -67,7 +69,7 @@ class Player(pygame.sprite.Sprite):
             flipped_image = pygame.transform.flip(image, True, False)
             self.image = flipped_image 
             
-        # set the rect position if there is collision to avoid overlapping surfaces
+        # Set the rect position if there is collision to avoid overlapping surfaces
         if self.on_platform and self.on_right:
             self.rect = self.image.get_rect(bottomright = self.rect.bottomright)
         elif self.on_platform and self.on_left:
@@ -81,23 +83,29 @@ class Player(pygame.sprite.Sprite):
         elif self.on_ceiling:
             self.rect = self.image.get_rect(midtop = self.rect.midtop)
             
-    def input (self):
+    def input(self):
         keys = pygame.key.get_pressed()
-        
+
+        # Horizontal Movement
         if keys[pygame.K_d] and not keys[pygame.K_a]:
             self.direction.x = 1
             self.facing_right = True
         elif keys[pygame.K_a] and not keys[pygame.K_d]:
             self.direction.x = -1
             self.facing_right = False
-        else :
+        else:
             self.direction.x = 0
-        for sprite in self.platform.sprites():
-            if keys[pygame.K_w] and (self.on_platform or self.rect.bottom == 400):
-                self.direction.y = self.jump_height
-                self.jump_sound.play()
-            elif keys[pygame.K_SPACE] or keys[pygame.K_k]:
-                self.status = 'shoot'
+
+        # Jump
+        if (keys[pygame.K_w] and self.can_jump and self.on_platform):
+            self.direction.y = self.jump_height
+            self.jump_sound.play()
+            self.can_jump = False   
+
+        # Shoot
+        if keys[pygame.K_SPACE] or keys[pygame.K_k]:
+            self.status = 'shoot'
+
             
     def get_status(self):
         if self.direction.y < 0 and self.status != 'shoot':
@@ -134,21 +142,32 @@ class Player(pygame.sprite.Sprite):
     
     def vertical_movement_collision(self):
         self.apply_gravity()
+
+        self.on_platform = False
+        self.on_ceiling = False
+
         for sprite in self.platform.sprites():
             if sprite.rect.colliderect(self.rect):
                 if self.direction.y > 0:
                     self.rect.bottom = sprite.rect.top
-                    self.rect.x -= 2 # move player along with platform if the player is on the top of the platform
+
+                    # Dynamic Speed
+                    if hasattr(sprite, "speed"):
+                        self.rect.x -= sprite.speed
+
                     self.direction.y = 0
                     self.on_platform = True
+
                 elif self.direction.y < 0:
                     self.rect.top = sprite.rect.bottom
                     self.direction.y = 0
                     self.on_ceiling = True
-        if self.on_platform and self.direction.y < 0 or self.direction.y > 1:
-            self.on_platform = False
-        if self.on_ceiling and self.direction.y > 0:
-            self.on_ceiling = False
+
+        # Reset Jump Condition
+        if self.on_platform and not self.was_on_platform:
+            self.can_jump = True
+
+        self.was_on_platform = self.on_platform
     
     def update(self, windows_width):
         self.jump_sound.set_volume(0.02)

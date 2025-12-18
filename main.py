@@ -4,63 +4,72 @@ from player import Player
 from enemies import Enemies
 from platform import Platform
 from utils import collision_sprite, game_over, display_score, control_text
+from difficulty import DifficultyManager
 
-# initialize the game
+# Initialize the game
 pygame.init()
 running = False
 start_time = 0
 score = 0
 high_score = 0
 
-# windows
+# Initialize DDA System
+difficulty_manager = DifficultyManager()
+
+# Windows
 windows_width = 800
 windows_height = 500
 screen = pygame.display.set_mode((windows_width, windows_height))
 pygame.display.set_caption('Space Shooter')
 
-# game fps
+# Game fps
 clock = pygame.time.Clock()
 
-# platforms groups
+# Platforms groups
 platform = pygame.sprite.Group()
-platform.add(Platform(700, 400))
+platform.add(Platform(700, 500))
 
-# player groups
+# Player groups
 player = Player(platform)
 player_group = pygame.sprite.GroupSingle()
 player_group.add(player)
 
-# bullet groups
+# Bullet groups
 bullet = pygame.sprite.Group()
 
-# enemies groups
+# Enemies groups
 enemies = pygame.sprite.Group()
 
-# explosions
+# Explosions
 explode = pygame.sprite.Group()
 
-# planet
+# Planet
 black_hole = pygame.sprite.GroupSingle()
 black_hole.add(BlackHole())
 
-# timers
+# Timers
 enemies_timer = pygame.USEREVENT + 1
-pygame.time.set_timer(enemies_timer, 1200)
+pygame.time.set_timer(enemies_timer,difficulty_manager.enemy_spawn_rate)
 platform_timer = pygame.USEREVENT + 2
-pygame.time.set_timer(platform_timer, 1000)
+pygame.time.set_timer(platform_timer, difficulty_manager.platform_spawn_rate)
 bullet_cooldown = 0.5 # seconds
 last_bullet_time = 0
 
-# font
+# DDA check timer
+dda_check_interval = 10  # Check difficulty every 10 seconds
+last_dda_check = 0
+
+# Font
 title_font = pygame.font.Font('data/Font/ethnocentric_rg.otf', 50)
 text_font = pygame.font.Font('data/Font/ethnocentric_rg.otf', 20)
+small_font = pygame.font.Font('data/Font/ethnocentric_rg.otf', 12)
 
-# sound
+# Sound
 game_music = pygame.mixer.Sound('data/Sound/Never Gonna Give You Up 8 bit.mp3')
 game_music.set_volume(0.2)
 game_music.play(loops = -1)
 
-# intro screen
+# Intro screen
 intro_bg = pygame.image.load('data/UI/Space_Background.png').convert_alpha()
 
 game_name = title_font.render('ALIEN SHOOTER', True, '#e1e1df')
@@ -75,11 +84,16 @@ start_button_rect = start_button.get_rect(center = (windows_width/2, 300))
 replay_button = pygame.transform.rotozoom(pygame.image.load('data/UI/Replay_BTN.png').convert_alpha(), 0, 0.4)
 replay_button_rect = replay_button.get_rect(center = (windows_width/2, 200))
 
-# background
+# Background
 space_bg = pygame.image.load('data/Backgrounds/5532919.jpg').convert_alpha()
 space_bg = pygame.transform.smoothscale(space_bg, (windows_width, windows_height))
 
-# game loop
+# Difficulty notification
+difficulty_notification = ""
+notification_time = 0
+notification_duration = 1.5  # seconds
+
+# Game loop
 while True:
     
     for event in pygame.event.get():
@@ -91,29 +105,113 @@ while True:
             if event.type == enemies_timer:
                 enemies.add(Enemies(random.choice(['Bat', 'Bat' ,'fly-eye', 'fly-eye', 'fly-eye'])))
             if event.type == platform_timer:
-                platform.add(Platform(random.randint(825, 900), random.randint(180, 380)))
+                platform.add(Platform(random.randint(850, 950), random.randint(150, 400)))
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_k or event.key == pygame.K_SPACE:
                     current_time = time.time()
-                    if current_time - last_bullet_time >= bullet_cooldown: # make bullet cannot be spammed
+                    if current_time - last_bullet_time >= bullet_cooldown:
                         bullet.add(player.create_bullet())
                         last_bullet_time = current_time
+                        # Track bullet fired for DDA
+                        difficulty_manager.update_performance(score, bullet_fired=True)
             
     if running:
         screen.blit(space_bg, (0, 0))
         score = display_score(text_font, screen, start_time, windows_width)
+
+        # Check Collision (Player Died or not)
+        running = (
+            collision_sprite(player_group, enemies, 40, platform, bullet, explode)
+            and game_over(player_group, enemies, platform, bullet, explode)
+        )
+
+        # Played Died
+        if not running:
+            # Count death
+            difficulty_manager.update_performance(score, is_death=True)
+
+            # Adjust difficulty
+            adjustment = difficulty_manager.adjust_difficulty()
+
+            if adjustment == "EASIER":
+                difficulty_notification = "DIFFICULTY DECREASED!"
+                notification_time = score
+
+                pygame.time.set_timer(
+                    enemies_timer, difficulty_manager.enemy_spawn_rate
+                )
+                pygame.time.set_timer(
+                    platform_timer, difficulty_manager.platform_spawn_rate
+                )
+
+        # Periodic adjustment while player still alive
+        if running and score - last_dda_check >= dda_check_interval:
+            adjustment = difficulty_manager.adjust_difficulty()
+            last_dda_check = score
+
+            if adjustment == "EASIER":
+                difficulty_notification = "DIFFICULTY DECREASED!"
+                notification_time = score
+
+                pygame.time.set_timer(
+                    enemies_timer, difficulty_manager.enemy_spawn_rate
+                )
+                pygame.time.set_timer(
+                    platform_timer, difficulty_manager.platform_spawn_rate
+                )
+
+            elif adjustment == "HARDER":
+                difficulty_notification = "DIFFICULTY INCREASED!"
+                notification_time = score
+
+                pygame.time.set_timer(
+                    enemies_timer, difficulty_manager.enemy_spawn_rate
+                )
+                pygame.time.set_timer(
+                    platform_timer, difficulty_manager.platform_spawn_rate
+                )
         
-        running = collision_sprite(player_group, enemies, 40, platform, bullet, explode) and game_over(player_group, enemies, platform, bullet, explode)
+        # Display difficulty info
+        difficulty_text = small_font.render(f'DIFFICULTY: {difficulty_manager.get_difficulty_name()}', True, '#FFD700')
+        difficulty_rect = difficulty_text.get_rect(topleft = (10, 10))
+        screen.blit(difficulty_text, difficulty_rect)
         
-        # update sprite
+        # Display stats
+        stats = difficulty_manager.get_stats()
+        kills_text = small_font.render(f'KILLS: {stats["enemies_killed"]}', True, '#e1e1df')
+        kills_rect = kills_text.get_rect(topleft = (10, 30))
+        screen.blit(kills_text, kills_rect)
+        
+        accuracy_text = small_font.render(f'ACC: {stats["accuracy"]}', True, '#e1e1df')
+        accuracy_rect = accuracy_text.get_rect(topleft = (10, 50))
+        screen.blit(accuracy_text, accuracy_rect)
+        
+        # Display difficulty change notification
+        if difficulty_notification and score - notification_time < notification_duration:
+            notif_text = text_font.render(difficulty_notification, True, '#FF4444')
+            notif_rect = notif_text.get_rect(center = (windows_width/2, 150))
+            screen.blit(notif_text, notif_rect)
+        
+        # Update sprite with dynamic difficulty
         player_group.update(windows_width)
         black_hole.update()
-        bullet.update(bullet, explode, enemies)
-        enemies.update()
-        explode.update()
-        platform.update()
+        bullet.update(explode, enemies, difficulty_manager, score)
         
-        # draw sprite
+        # Update enemies with dynamic speed
+        for enemy in enemies:
+            enemy.rect.x -= difficulty_manager.enemy_speed
+            enemy.animate()
+            enemy.destroy()
+        
+        # Update platforms with dynamic speed
+        for plat in platform:
+            plat.speed = difficulty_manager.platform_speed
+            plat.rect.x -= plat.speed
+            plat.destroy()
+            
+        explode.update()
+        
+        # Draw sprite
         bullet.draw(screen)
         black_hole.draw(screen)
         player_group.draw(screen)
@@ -142,6 +240,8 @@ while True:
                 if pygame.mouse.get_pressed() == (True, False, False):
                     running = True
                     start_time = int(pygame.time.get_ticks()/1000)
+                    difficulty_manager.reset()
+                    last_dda_check = 0
             elif control_info_button_rect.collidepoint(mouse_pos):
                 if pygame.mouse.get_pressed() == (True, False, False):
                     control_text(screen, intro_bg, text_font, windows_width)
@@ -154,6 +254,8 @@ while True:
                 if pygame.mouse.get_pressed() == (True, False, False):
                     running = True
                     start_time = int(pygame.time.get_ticks()/1000)
+                    difficulty_manager.reset()
+                    last_dda_check = 0
                     
     pygame.display.update()
     clock.tick(60) # limit fps to 60fps

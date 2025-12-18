@@ -25,11 +25,9 @@ def collision_sprite(player_group, enemies, max_distance, platform, bullet, expl
                 return False
     return True
 
-def enemies_collision(sprites, enemies):
-    for sprite in sprites:
-        hits = pygame.sprite.spritecollide(sprite, enemies, True)
-        if hits :
-            return True
+def enemies_collision(sprite, enemies):
+    hits = pygame.sprite.spritecollide(sprite, enemies, True)
+    return hits
         
 def game_over(players, enemies, platform, bullet, explode):
     for player in players:
@@ -59,3 +57,4 @@ def control_text(screen, intro_bg, text_font, windows_width):
     screen.blit(jump_text, jump_text_rect)
     screen.blit(move_text, move_text_rect)
     screen.blit(shoot_text, shoot_text_rect)
+

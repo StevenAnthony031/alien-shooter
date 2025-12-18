@@ -30,8 +30,3 @@ class Enemies(pygame.sprite.Sprite):
     def destroy(self):
         if self.rect.right <= 0:
             self.kill()
-        
-    def update(self):
-        self.rect.x -= 4
-        self.animate()
-        self.destroy()

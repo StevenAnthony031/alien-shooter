@@ -27,24 +27,31 @@ class Bullet(pygame.sprite.Sprite):
             flipped_image = pygame.transform.flip(image, True, False)
             self.image = flipped_image 
             
-    def update(self, bullet, explode, enemies):
+    def update(self, explode, enemies, difficulty_manager, score):
         self.explosion_sound.set_volume(0.5)
+
         if self.facing_right:
             self.rect.x += 5
-            if enemies_collision(bullet, enemies):
-                self.current_x = self.rect.right
-                self.current_y = self.rect.y
+            hit_enemies = enemies_collision(self, enemies)
+            if hit_enemies:
+                for _ in hit_enemies:
+                    difficulty_manager.update_performance(score, bullet_hit=True)
+
                 self.kill()
                 self.explosion_sound.play()
-                explosion = Explosion(self.current_x, self.current_y)
+                explosion = Explosion(self.rect.right, self.rect.y)
                 explode.add(explosion)
-        else :
+
+        else:
             self.rect.x -= 5
-            if enemies_collision(bullet, enemies):
-                self.current_x = self.rect.left
-                self.current_y = self.rect.y
+            hit_enemies = enemies_collision(self, enemies)
+            if hit_enemies:
+                for _ in hit_enemies:
+                    difficulty_manager.update_performance(score, bullet_hit=True)
+
                 self.kill()
                 self.explosion_sound.play()
-                explosion = Explosion(self.current_x, self.current_y)
+                explosion = Explosion(self.rect.left, self.rect.y)
                 explode.add(explosion)
+
         self.animate()
